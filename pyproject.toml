@@ -41,6 +41,8 @@ test = ["pytest>=8"]
 [project.urls]
 Homepage = "https://eriusphone.com"
 Documentation = "https://eriusphone.com/docs.html"
+Repository = "https://github.com/Protremix/erius-phone-mcp"
+Issues = "https://github.com/Protremix/erius-phone-mcp/issues"
 
 [project.scripts]
 erius-phone-mcp = "erius_phone_mcp.server:main"
