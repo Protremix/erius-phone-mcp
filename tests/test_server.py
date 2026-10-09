@@ -105,7 +105,7 @@ def test_all_21_tools_registered():
 def test_package_exports():
     assert erius_phone_mcp.mcp is server.mcp
     assert callable(erius_phone_mcp.main)
-    assert erius_phone_mcp.__version__ == "0.1.0"
+    assert erius_phone_mcp.__version__ == "0.1.1"
 
 
 # ---------- ERIUS_PHONE_API_URL ----------

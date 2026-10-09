@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Protremix/erius-phone-mcp",
+  "title": "ERIUS PHONE",
+  "description": "Drive a hosted ERIUS PHONE Android device: read the screen, tap, type, install APKs, get crash logs.",
+  "version": "0.1.1",
+  "websiteUrl": "https://eriusphone.com",
+  "repository": {
+    "url": "https://github.com/Protremix/erius-phone-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "erius-phone-mcp",
+      "version": "0.1.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ERIUS_PHONE_API_KEY",
+          "description": "Your ERIUS PHONE API key (early access, request at https://eriusphone.com).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "ERIUS_PHONE_DEFAULT_DEVICE",
+          "description": "Device id to use when a tool call does not name one.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

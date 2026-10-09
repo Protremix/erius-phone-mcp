@@ -1,5 +1,7 @@
 # erius-phone-mcp
 
+<!-- mcp-name: io.github.Protremix/erius-phone-mcp -->
+
 An [MCP](https://modelcontextprotocol.io) server that turns your
 [ERIUS PHONE](https://eriusphone.com) device into native tools for Claude Code,
 Claude Desktop, Cursor, or any other MCP client. An ERIUS PHONE device is a real
@@ -15,7 +17,7 @@ your agent can:
 
 The agent drives the device directly. You don't write any glue code.
 
-> **Early access:** this package is pre-1.0 (`0.1.0`). Tool names and
+> **Early access:** this package is pre-1.0 (`0.1.1`). Tool names and
 > arguments may still change before 1.0.
 
 ## Requirements
