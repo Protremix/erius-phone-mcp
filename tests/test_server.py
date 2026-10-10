@@ -105,7 +105,7 @@ def test_all_21_tools_registered():
 def test_package_exports():
     assert erius_phone_mcp.mcp is server.mcp
     assert callable(erius_phone_mcp.main)
-    assert erius_phone_mcp.__version__ == "0.1.1"
+    assert erius_phone_mcp.__version__ == "0.2.0"
 
 
 # ---------- ERIUS_PHONE_API_URL ----------
@@ -276,9 +276,68 @@ def test_screenshot_returns_image_content(configured, mock_api):
     png = b"\x89PNG\r\n\x1a\nfake"
     mock_api.handler = lambda req: httpx.Response(200, content=png, headers={"content-type": "image/png"})
     content = call("screenshot", {"device": "vanilla"}).content
-    assert len(content) == 1 and content[0].type == "image"
+    assert content[0].type == "image"
     assert content[0].mime_type == "image/png"
     assert base64.b64decode(content[0].data) == png
+
+
+def _png(width: int, height: int) -> bytes:
+    return b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + width.to_bytes(4, "big") + height.to_bytes(4, "big") + b"rest"
+
+
+def test_screenshot_defaults_to_a_small_jpeg(configured, mock_api):
+    call("screenshot", {"device": "vanilla"})
+    req = mock_api[0]
+    assert (req.method, req.url.path) == ("GET", "/device/vanilla/screenshot")
+    assert dict(req.url.params) == {"format": "jpeg", "quality": "70", "maxSide": "1024"}
+
+
+def test_screenshot_passes_format_quality_scale_max_side(configured, mock_api):
+    call("screenshot", {"device": "vanilla", "format": "webp", "quality": 55, "scale": 0.5, "max_side": 800})
+    assert dict(mock_api[0].url.params) == {"format": "webp", "quality": "55", "scale": "0.5", "maxSide": "800"}
+
+
+def test_screenshot_full_size_png_on_request(configured, mock_api):
+    call("screenshot", {"device": "vanilla", "format": "png", "max_side": None})
+    assert dict(mock_api[0].url.params) == {"format": "png"}
+
+
+def test_screenshot_reports_image_and_device_size(configured, mock_api):
+    mock_api.handler = lambda req: httpx.Response(200, content=_png(473, 1024), headers={
+        "content-type": "image/png", "x-device-width": "1440", "x-device-height": "3120"})
+    content = call("screenshot", {"device": "vanilla"}).content
+    assert [c.type for c in content] == ["image", "text"]
+    assert "image 473x1024" in content[1].text and "device screen 1440x3120" in content[1].text
+    assert "image_width=473, image_height=1024" in content[1].text
+
+
+def test_screenshot_at_native_size_gives_no_scaling_hint(configured, mock_api):
+    mock_api.handler = lambda req: httpx.Response(200, content=_png(1440, 3120), headers={
+        "content-type": "image/png", "x-device-width": "1440", "x-device-height": "3120"})
+    text = call("screenshot", {"device": "vanilla", "format": "png", "max_side": None}).content[1].text
+    assert "image 1440x3120" in text and "image_width" not in text
+
+
+def test_tap_xy_in_image_pixels_sends_of(configured, mock_api):
+    call("tap", {"device": "vanilla", "x": 100, "y": 200, "image_width": 473, "image_height": 1024})
+    assert json.loads(mock_api[0].content) == {"x": 100, "y": 200, "of": [473, 1024]}
+
+
+def test_tap_xy_without_image_size_is_device_pixels(configured, mock_api):
+    call("tap", {"device": "vanilla", "x": 100, "y": 200})
+    assert json.loads(mock_api[0].content) == {"x": 100, "y": 200}
+
+
+def test_tap_image_size_needs_both(configured, mock_api):
+    assert "must be given together" in call_error("tap", {"device": "vanilla", "x": 1, "y": 2, "image_width": 473})
+    assert mock_api == []
+
+
+def test_swipe_and_long_press_in_image_pixels(configured, mock_api):
+    call("swipe", {"device": "vanilla", "x1": 1, "y1": 2, "x2": 3, "y2": 4, "image_width": 473, "image_height": 1024})
+    assert json.loads(mock_api[0].content) == {"x1": 1, "y1": 2, "x2": 3, "y2": 4, "ms": 300, "of": [473, 1024]}
+    call("long_press", {"device": "vanilla", "x": 5, "y": 6, "image_width": 473, "image_height": 1024})
+    assert json.loads(mock_api[1].content) == {"x": 5, "y": 6, "of": [473, 1024]}
 
 
 def test_bad_timeout_env_is_clear(configured, monkeypatch, mock_api):

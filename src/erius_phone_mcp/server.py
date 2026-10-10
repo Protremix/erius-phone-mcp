@@ -19,7 +19,9 @@ from typing import Any, Optional
 import httpx
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.tools import ToolResult
 from fastmcp.utilities.types import Image
+from mcp.types import TextContent
 
 from . import __version__
 
@@ -147,15 +149,80 @@ def snapshot(device: Optional[str] = None, max_depth: Optional[int] = None,
     return _json("GET", f"/device/{_device_id(device)}/snapshot", params=params)
 
 
+def _image_size(data: bytes) -> tuple[int, int] | None:
+    """(width, height) of a PNG, JPEG or WebP, read from its header; None if unrecognised."""
+    try:
+        if data[:8] == b"\x89PNG\r\n\x1a\n":
+            return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+        if data[:2] == b"\xff\xd8":
+            i = 2
+            while i + 9 < len(data):
+                if data[i] != 0xFF:
+                    i += 1
+                    continue
+                marker = data[i + 1]
+                if marker in (0xC0, 0xC1, 0xC2, 0xC3):  # start of frame
+                    return int.from_bytes(data[i + 7:i + 9], "big"), int.from_bytes(data[i + 5:i + 7], "big")
+                if marker == 0xFF:  # fill byte
+                    i += 1
+                    continue
+                if marker == 0x01 or 0xD0 <= marker <= 0xD9:  # markers with no length
+                    i += 2
+                    continue
+                i += 2 + int.from_bytes(data[i + 2:i + 4], "big")
+        if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            kind = data[12:16]
+            if kind == b"VP8X":
+                return int.from_bytes(data[24:27], "little") + 1, int.from_bytes(data[27:30], "little") + 1
+            if kind == b"VP8 ":
+                return int.from_bytes(data[26:28], "little") & 0x3FFF, int.from_bytes(data[28:30], "little") & 0x3FFF
+            if kind == b"VP8L":
+                bits = int.from_bytes(data[21:25], "little")
+                return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    except Exception:
+        pass
+    return None
+
+
 @mcp.tool
-def screenshot(device: Optional[str] = None) -> Image:
-    """Take a screenshot of the device screen right now (PNG at the device's
-    native resolution, e.g. 720x1280 on a phone) and return it as an image you
-    can look at. Tap coordinates are in the same pixels. Prefer snapshot()
-    when you only need text and refs: it's far smaller."""
-    resp = _request("GET", f"/device/{_device_id(device)}/screenshot")
+def screenshot(device: Optional[str] = None, format: str = "jpeg", quality: int = 70,
+               max_side: Optional[int] = 1024, scale: Optional[float] = None) -> ToolResult:
+    """Take a screenshot of the device screen right now and return it as an
+    image you can look at, plus one line of text with the image size and the
+    device's real screen size.
+
+    The default is a JPEG whose longest side is 1024 px (tens of KB). A
+    full-size PNG of a 1440x3120 phone is about 3 MB, which is more than many
+    MCP clients accept in a tool result, so ask for it only when you need it:
+    format="png", max_side=None.
+
+    `format` is "jpeg", "webp" or "png"; `quality` is 1-100 (jpeg/webp);
+    `max_side` caps the longest side in pixels (64-8192); `scale` (0.1-1)
+    shrinks by a factor instead. When the image is smaller than the screen,
+    pass its size as image_width/image_height to tap(), long_press() or
+    swipe() so x,y are read in the image's pixels. Prefer snapshot() when you
+    only need text and refs: it's far smaller."""
+    params: dict[str, Any] = {"format": format}
+    if format != "png":
+        params["quality"] = quality
+    if max_side:
+        params["maxSide"] = max_side
+    if scale is not None:
+        params["scale"] = scale
+    resp = _request("GET", f"/device/{_device_id(device)}/screenshot", params=params)
     fmt = resp.headers.get("content-type", "image/png").split(";")[0].split("/")[-1] or "png"
-    return Image(data=resp.content, format=fmt)
+    content: list[Any] = [Image(data=resp.content, format=fmt).to_image_content()]
+    size = _image_size(resp.content)
+    dev_w, dev_h = resp.headers.get("x-device-width"), resp.headers.get("x-device-height")
+    if size:
+        note = f"image {size[0]}x{size[1]} {fmt}, {len(resp.content)} bytes"
+        if dev_w and dev_h:
+            note += f"; device screen {dev_w}x{dev_h}"
+            if (str(size[0]), str(size[1])) != (dev_w, dev_h):
+                note += (f". To tap a point you see in this image, pass its x,y with "
+                         f"image_width={size[0]}, image_height={size[1]}")
+        content.append(TextContent(type="text", text=note))
+    return ToolResult(content=content)
 
 
 @mcp.tool
@@ -167,11 +234,23 @@ def foreground(device: Optional[str] = None) -> dict[str, Any]:
 
 # ---------- acting on the screen ----------
 
+def _image_space(body: dict[str, Any], image_width: Optional[int], image_height: Optional[int]) -> None:
+    """Add the API's "of": [w, h] when x,y are given in a scaled screenshot's pixels."""
+    if image_width is None and image_height is None:
+        return
+    if not image_width or not image_height:
+        raise ToolError("image_width and image_height must be given together")
+    body["of"] = [image_width, image_height]
+
+
 @mcp.tool
 def tap(device: Optional[str] = None, ref: Optional[str] = None, text: Optional[str] = None,
-        content_desc: Optional[str] = None, x: Optional[int] = None, y: Optional[int] = None) -> dict[str, Any]:
+        content_desc: Optional[str] = None, x: Optional[int] = None, y: Optional[int] = None,
+        image_width: Optional[int] = None, image_height: Optional[int] = None) -> dict[str, Any]:
     """Tap an element. Prefer `ref` from a snapshot(), or `text`/`content_desc`
-    to tap by visible label. Falls back to raw `x`,`y` pixel coordinates."""
+    to tap by visible label. Falls back to raw `x`,`y` pixel coordinates: in
+    device pixels, or, with `image_width` and `image_height`, in the pixels
+    of a screenshot of that size (the API maps the point to the screen)."""
     body: dict[str, Any] = {}
     if ref is not None:
         body["ref"] = ref
@@ -182,6 +261,7 @@ def tap(device: Optional[str] = None, ref: Optional[str] = None, text: Optional[
             body["contentDesc"] = content_desc
     elif x is not None and y is not None:
         body["x"], body["y"] = x, y
+        _image_space(body, image_width, image_height)
     else:
         raise ToolError("tap needs ref, or text/content_desc, or x and y")
     return _json("POST", f"/device/{_device_id(device)}/tap", json_body=body)
@@ -190,9 +270,11 @@ def tap(device: Optional[str] = None, ref: Optional[str] = None, text: Optional[
 @mcp.tool
 def long_press(device: Optional[str] = None, ref: Optional[str] = None, text: Optional[str] = None,
                content_desc: Optional[str] = None, x: Optional[int] = None, y: Optional[int] = None,
-               ms: Optional[int] = None) -> dict[str, Any]:
+               ms: Optional[int] = None, image_width: Optional[int] = None,
+               image_height: Optional[int] = None) -> dict[str, Any]:
     """Long-press an element (e.g. to open a context menu or start a drag).
-    Targets work like tap(): `ref`, `text`/`content_desc`, or raw `x`,`y`.
+    Targets work like tap(): `ref`, `text`/`content_desc`, or raw `x`,`y`
+    (with `image_width`/`image_height` when they come from a scaled screenshot).
     `ms` (hold time, default 800) only applies to the x,y form."""
     body: dict[str, Any] = {}
     if ref is not None:
@@ -204,6 +286,7 @@ def long_press(device: Optional[str] = None, ref: Optional[str] = None, text: Op
             body["contentDesc"] = content_desc
     elif x is not None and y is not None:
         body["x"], body["y"] = x, y
+        _image_space(body, image_width, image_height)
         if ms is not None:
             body["ms"] = ms
     else:
@@ -236,10 +319,13 @@ def press_key(key: str, device: Optional[str] = None) -> dict[str, Any]:
 
 
 @mcp.tool
-def swipe(x1: int, y1: int, x2: int, y2: int, device: Optional[str] = None, ms: int = 300) -> dict[str, Any]:
-    """Swipe from one point to another in device pixel coordinates."""
-    return _json("POST", f"/device/{_device_id(device)}/swipe",
-                 json_body={"x1": x1, "y1": y1, "x2": x2, "y2": y2, "ms": ms})
+def swipe(x1: int, y1: int, x2: int, y2: int, device: Optional[str] = None, ms: int = 300,
+          image_width: Optional[int] = None, image_height: Optional[int] = None) -> dict[str, Any]:
+    """Swipe from one point to another: in device pixel coordinates, or, with
+    `image_width` and `image_height`, in the pixels of a screenshot of that size."""
+    body: dict[str, Any] = {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "ms": ms}
+    _image_space(body, image_width, image_height)
+    return _json("POST", f"/device/{_device_id(device)}/swipe", json_body=body)
 
 
 @mcp.tool

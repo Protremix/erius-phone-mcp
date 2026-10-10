@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "erius-phone-mcp"
-version = "0.1.1"
+version = "0.2.0"
 description = "MCP server that gives your AI agent a real Android phone (ERIUS PHONE): read the screen, tap, type, launch apps, read crash logs."
 readme = "README.md"
 license = "MIT"

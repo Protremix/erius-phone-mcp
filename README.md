@@ -17,7 +17,7 @@ your agent can:
 
 The agent drives the device directly. You don't write any glue code.
 
-> **Early access:** this package is pre-1.0 (`0.1.1`). Tool names and
+> **Early access:** this package is pre-1.0 (`0.2.0`). Tool names and
 > arguments may still change before 1.0.
 
 ## Requirements
@@ -163,7 +163,7 @@ leave it out, the tool uses `ERIUS_PHONE_DEFAULT_DEVICE`.
 | Tool | Description |
 |---|---|
 | `snapshot` | Accessibility-tree snapshot of the current screen: every visible element with its text, role and a `ref` you can pass to tap/type/scroll. Refs reset on every snapshot. |
-| `screenshot` | PNG of the screen at native resolution, returned as MCP image content, so the model sees the screen directly. |
+| `screenshot` | The screen as MCP image content, so the model sees it directly. Default: JPEG, longest side 1024 px (tens of KB). `format`, `quality`, `max_side` and `scale` change that; `format="png", max_side=null` gives the full-size PNG (about 3 MB on a phone). A text line gives the image and screen sizes. |
 | `foreground` | Just the foreground app (package, activity) and whether a crash dialog is showing. |
 | `wait_for_text` | Wait until some text appears on screen, up to `timeout_ms` (max 120000). Returns the snapshot it saw. |
 
@@ -258,9 +258,14 @@ install_apk(device="vanilla", apk_path="/path/to/app.apk")
 - **Scroll by container.** `scroll` needs the ref of the scrollable container
   (a `ScrollView`/`List` line in the snapshot). If the container has no ref,
   use `swipe`.
-- **Screenshots cost context.** A phone screenshot (720×1280) is ~50–700 KB;
-  a tablet screenshot (1600×2560) can be several MB. Prefer `snapshot` (text,
-  much smaller) and take screenshots only when you need pixels.
+- **Screenshots cost context.** The default screenshot is a JPEG with its
+  longest side at 1024 px (tens of KB). A full-size PNG of a phone
+  (1440×3120) is about 3 MB, more than many MCP clients accept in one tool
+  result. Prefer `snapshot` (text, much smaller) and take screenshots only
+  when you need pixels.
+- **Coordinates from a scaled screenshot.** `x`,`y` are device pixels unless
+  you pass `image_width` and `image_height` (the size of the screenshot you
+  read them from) to `tap`, `long_press` or `swipe`.
 - **`install_apk` reads a local file.** The path is on the machine running
   `erius-phone-mcp`, not on the phone. The APK is streamed from disk and
   uploaded in full on each call.

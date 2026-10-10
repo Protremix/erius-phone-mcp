@@ -3,7 +3,7 @@
   "name": "io.github.Protremix/erius-phone-mcp",
   "title": "ERIUS PHONE",
   "description": "Drive a hosted ERIUS PHONE Android device: read the screen, tap, type, install APKs, get crash logs.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "websiteUrl": "https://eriusphone.com",
   "repository": {
     "url": "https://github.com/Protremix/erius-phone-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "erius-phone-mcp",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
