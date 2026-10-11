@@ -1,5 +1,7 @@
 # erius-phone-mcp
 
+[![Erius Phone Mcp on AI Agents Listing](https://aiagentslisting.com/erius-phone-mcp-2/badge.svg?claim=908a95a9e43844298d2012188cd96279)](https://aiagentslisting.com/mcp/erius-phone-mcp-2)
+
 <!-- mcp-name: io.github.Protremix/erius-phone-mcp -->
 
 An [MCP](https://modelcontextprotocol.io) server that turns your
