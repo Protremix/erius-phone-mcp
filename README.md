@@ -1,6 +1,6 @@
 # erius-phone-mcp
 
-[![Erius Phone Mcp on AI Agents Listing](https://aiagentslisting.com/erius-phone-mcp-2/badge.svg?claim=908a95a9e43844298d2012188cd96279)](https://aiagentslisting.com/mcp/erius-phone-mcp-2)
+[![Erius Phone Mcp on AI Agents Listing](https://aiagentslisting.com/erius-phone-mcp-2/badge.svg?claim=908a95a9e43844298d2012188cd96279)](https://aiagentslisting.com/mcp/erius-phone-mcp-2) [![M8ven Score](https://m8ven.ai/badge/mcp/protremix/erius-phone-mcp)](https://m8ven.ai/mcp/protremix/erius-phone-mcp?s=readme)
 
 <!-- mcp-name: io.github.Protremix/erius-phone-mcp -->
 
